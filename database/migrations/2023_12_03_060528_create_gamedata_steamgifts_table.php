@@ -10,11 +10,11 @@ return new class() extends Migration {
      */
     public function up(): void
     {
-        Schema::create('games', function (Blueprint $table) {
+        Schema::create('gamedata_steamgifts', function (Blueprint $table) {
             $table->id();
-            $table->unsignedMediumInteger('app_id')->index()->nullable();
-            $table->unsignedMediumInteger('package_id')->index()->nullable();
-            $table->string('name');
+            $table->foreignId('game_id')->constrained()->cascadeOnDelete();
+            $table->timestamp('cv_reduced_at')->nullable();
+            $table->timestamp('cv_removed_at')->nullable();
             $table->timestamps();
         });
     }
@@ -24,6 +24,6 @@ return new class() extends Migration {
      */
     public function down(): void
     {
-        Schema::dropIfExists('games');
+        Schema::dropIfExists('gamedata_steamgifts');
     }
 };

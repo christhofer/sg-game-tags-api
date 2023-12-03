@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Models\Game;
+use App\Models\GamedataSteamgifts;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -28,9 +28,10 @@ class GameSyncSteamgifts implements ShouldQueue
      */
     public function handle(): void
     {
+        // insert new games, update existing
         $page = 1;
         while (true) {
-            $response = Game::syncBundleGames($page);
+            $response = GamedataSteamgifts::syncBundleGames($page);
             ++$page;
 
             if ($page >= 100) {
@@ -42,6 +43,25 @@ class GameSyncSteamgifts implements ShouldQueue
             if (count($response['results']) !== $response['per_page']) {
                 break;
             }
+        }
+
+        // remove games that are not in steamgifts bundle anymore
+        // the games will have updated_at more than 1 hour ago
+        $notBundledAnymore = GamedataSteamgifts::where('updated_at', '<', now()->subHour())
+            ->with('game')
+            ->get();
+        if ($notBundledAnymore->count()) {
+            info(
+                'GameSyncSteamgifts: ' .
+                $notBundledAnymore->count() .
+                ' games are not bundled anymore, deleting:' .
+                $notBundledAnymore->implode(
+                    fn ($sg) => $sg->game->name . ' (' . ($sg->game->app_id ?? $sg->game->package_id) . ')',
+                    ', '
+                )
+            );
+
+            GamedataSteamgifts::where('updated_at', '<', now()->subHour())->delete();
         }
     }
 }

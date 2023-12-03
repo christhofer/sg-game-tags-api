@@ -32,9 +32,6 @@ class GameFactory extends Factory
                 return $this->faker->unique()->numberBetween(1, 10000);
             },
             'name' => $this->faker->unique()->sentence(6),
-            'cv_reduced_at' => $this->faker->boolean(95) ? $this->faker->dateTimeBetween('-2 year', 'now') : null,
-            'cv_removed_at' => $this->faker->boolean(20) ? $this->faker->dateTimeBetween('-1 year', 'now') : null,
-            'last_checked_sg_at' => today(),
         ];
     }
 }

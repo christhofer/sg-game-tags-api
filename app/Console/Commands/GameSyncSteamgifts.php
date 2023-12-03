@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Game;
+use App\Models\GamedataSteamgifts;
 use Illuminate\Console\Command;
 
 class GameSyncSteamgifts extends Command
@@ -12,7 +12,7 @@ class GameSyncSteamgifts extends Command
      *
      * @var string
      */
-    protected $signature = 'app:game:sync:steamgifts {--page=1 : The page number}';
+    protected $signature = 'app:game:sync:steamgifts {--from=1 : The page number to start} {--to=50 : The page number to end}';
 
     /**
      * The console command description.
@@ -28,28 +28,44 @@ class GameSyncSteamgifts extends Command
     {
         $this->comment('Syncing Bundle Games');
 
-        $page = (int) $this->option('page');
+        $page = (int) $this->option('from');
+        $to = (int) $this->option('to');
 
-        while (true) {
+        $errorPages = [];
+
+        while ($page <= $to) {
             $paddedPage = str_pad(strval($page), 2, ' ', STR_PAD_LEFT);
             $this->output->write("<comment>Page:</comment> {$paddedPage}");
 
             [$duration, $response] = $this->measureElapsedTime(function () use ($page) {
-                return Game::syncBundleGames($page);
+                return GamedataSteamgifts::syncBundleGames($page);
             });
 
             $paddedDuration = str_pad(strval($duration), 5, ' ', STR_PAD_LEFT);
-            $this->output->write(" ..... <info>OK!</info> in {$paddedDuration} seconds");
-            $this->newLine();
+
+            if ($response === false) {
+                // request failed
+                $this->output->write(" ..... <error>ERROR</error> after {$paddedDuration} seconds!");
+                $this->newLine();
+                $errorPages[] = $page;
+            } else {
+                // request success
+                $this->output->write(" ..... <info>Done</info> in {$paddedDuration} seconds!");
+                $this->newLine();
+                // exit condition
+                if (count($response['results']) !== $response['per_page']) {
+                    break;
+                }
+            }
 
             ++$page;
-
-            if (count($response['results']) !== $response['per_page']) {
-                break;
-            }
         }
 
         $this->info('Sync Completed!');
+
+        if (count($errorPages) > 0) {
+            $this->error('Error Pages: ' . implode(', ', $errorPages));
+        }
     }
 
     /**

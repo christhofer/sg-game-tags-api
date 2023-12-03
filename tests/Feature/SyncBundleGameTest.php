@@ -4,13 +4,14 @@ namespace Tests\Feature;
 
 use App\Jobs\GameSyncSteamgifts;
 use App\Models\Game;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class SyncBundleGameTest extends TestCase
 {
     /**
-     * Test function syncBundleGames on Game model, should send GEt request
+     * Test function syncBundleGames on Game model, should send GET request
      * to Steamgifts, and update table games.
      */
     public function testSyncBundleGame(): void
@@ -18,34 +19,46 @@ class SyncBundleGameTest extends TestCase
         $lastCheck = today()->subDay();
         // generate existing data games
         $this->travelTo($lastCheck, function () {
-            Game::factory()->create([
-                'name' => 'Game 1',
-                'app_id' => 1440191,
-                'package_id' => null,
-                'cv_reduced_at' => 1622505600,
-                'cv_removed_at' => null,
-            ]);
-            Game::factory()->create([
-                'name' => 'Game 2',
-                'app_id' => 70600,
-                'package_id' => null,
-                'cv_reduced_at' => 1383192000,
-                'cv_removed_at' => null,
-            ]);
-            Game::factory()->create([
-                'name' => 'Game 3',
-                'app_id' => 70617,
-                'package_id' => null,
-                'cv_reduced_at' => 1543881600,
-                'cv_removed_at' => null,
-            ]);
-            Game::factory()->create([
-                'name' => 'Game 4',
-                'app_id' => null,
-                'package_id' => 27831,
-                'cv_reduced_at' => 1622505600,
-                'cv_removed_at' => null,
-            ]);
+            Game::factory()
+                ->hasSteamgifts([
+                    'cv_reduced_at' => Date::createFromTimestamp(1622505600),
+                    'cv_removed_at' => null,
+                ])
+                ->create([
+                    'name' => 'Game 1',
+                    'app_id' => 1440191,
+                    'package_id' => null,
+                ]);
+            Game::factory()
+                ->hasSteamgifts([
+                    'cv_reduced_at' => Date::createFromTimestamp(1383192000),
+                    'cv_removed_at' => null,
+                ])
+                ->create([
+                    'name' => 'Game 2',
+                    'app_id' => 70600,
+                    'package_id' => null,
+                ]);
+            Game::factory()
+                ->hasSteamgifts([
+                    'cv_reduced_at' => Date::createFromTimestamp(1543881600),
+                    'cv_removed_at' => null,
+                ])
+                ->create([
+                    'name' => 'Game 3',
+                    'app_id' => 70617,
+                    'package_id' => null,
+                ]);
+            Game::factory()
+                ->hasSteamgifts([
+                    'cv_reduced_at' => Date::createFromTimestamp(1622505600),
+                    'cv_removed_at' => null,
+                ])
+                ->create([
+                    'name' => 'Game 4',
+                    'app_id' => null,
+                    'package_id' => 27831,
+                ]);
         });
 
         $url = config('services.steamgifts.url.sync-bundle');
@@ -79,6 +92,7 @@ class SyncBundleGameTest extends TestCase
                         'reduced_value_timestamp' => null,
                         'no_value_timestamp' => 1543881600,
                     ],
+                    // game 4 removed from bundle
                 ],
             ]),
             $url . 2 => Http::response([
@@ -96,53 +110,69 @@ class SyncBundleGameTest extends TestCase
             ]),
         ]);
 
-        $this->freezeSecond(function () use ($lastCheck) {
+        $this->freezeSecond(function () {
             GameSyncSteamgifts::dispatch();
+            $games = Game::all();
 
-            // unchanged, only update last_checked_sg_at
+            // table games should not change
             $this->assertDatabaseHas('games', [
+                'id' => $games[0]->id,
                 'name' => 'Game 1',
                 'app_id' => 1440191,
                 'package_id' => null,
-                'cv_reduced_at' => 1622505600,
-                'cv_removed_at' => null,
-                'last_checked_sg_at' => now()->format('Y-m-d H:i:s'),
             ]);
-            // added cv_removed_at
             $this->assertDatabaseHas('games', [
+                'id' => $games[1]->id,
                 'name' => 'Game 2',
                 'app_id' => 70600,
                 'package_id' => null,
-                'cv_reduced_at' => 1383192000,
-                'cv_removed_at' => 1512086400,
-                'last_checked_sg_at' => now()->format('Y-m-d H:i:s'),
             ]);
-            // removed cv_reduced_at, added cv_removed_at
             $this->assertDatabaseHas('games', [
+                'id' => $games[2]->id,
                 'name' => 'Game 3',
                 'app_id' => 70617,
                 'package_id' => null,
-                'cv_reduced_at' => null,
-                'cv_removed_at' => 1543881600,
-                'last_checked_sg_at' => now()->format('Y-m-d H:i:s'),
             ]);
-            // unchanged because don't exist in api response
             $this->assertDatabaseHas('games', [
+                'id' => $games[3]->id,
                 'name' => 'Game 4',
                 'app_id' => null,
                 'package_id' => 27831,
-                'cv_reduced_at' => 1622505600,
-                'cv_removed_at' => null,
-                'last_checked_sg_at' => $lastCheck->format('Y-m-d H:i:s'),
             ]);
-            // newly added game
             $this->assertDatabaseHas('games', [
+                'id' => $games[4]->id,
                 'name' => 'Game 5',
                 'app_id' => 96540,
                 'package_id' => null,
-                'cv_reduced_at' => 1660435200,
+            ]);
+
+            // table gamedata_steamgifts should change
+            $this->assertDatabaseHas('gamedata_steamgifts', [
+                'game_id' => $games[0]->id,
+                'cv_reduced_at' => Date::createFromTimestamp(1622505600)->toDateTimeString(),
                 'cv_removed_at' => null,
-                'last_checked_sg_at' => now()->format('Y-m-d H:i:s'),
+            ]);
+            // added cv_removed_at
+            $this->assertDatabaseHas('gamedata_steamgifts', [
+                'game_id' => $games[1]->id,
+                'cv_reduced_at' => Date::createFromTimestamp(1383192000)->toDateTimeString(),
+                'cv_removed_at' => Date::createFromTimestamp(1512086400)->toDateTimeString(),
+            ]);
+            // removed cv_reduced_at, added cv_removed_at
+            $this->assertDatabaseHas('gamedata_steamgifts', [
+                'game_id' => $games[2]->id,
+                'cv_reduced_at' => null,
+                'cv_removed_at' => Date::createFromTimestamp(1543881600)->toDateTimeString(),
+            ]);
+            // removed because don't exist in api response
+            $this->assertDatabaseMissing('gamedata_steamgifts', [
+                'game_id' => $games[3]->id,
+            ]);
+            // newly added game
+            $this->assertDatabaseHas('gamedata_steamgifts', [
+                'game_id' => $games[4]->id,
+                'cv_reduced_at' => Date::createFromTimestamp(1660435200)->toDateTimeString(),
+                'cv_removed_at' => null,
             ]);
         });
 

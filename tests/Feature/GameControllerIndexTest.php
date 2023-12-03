@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Game;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Testing\Fluent\AssertableJson;
 use Tests\TestCase;
 
@@ -25,34 +26,46 @@ class GameControllerIndexTest extends TestCase
 
     public function testIndexWithAppId(): void
     {
-        Game::factory()->create([
-            'name' => 'Game 1',
-            'app_id' => 1440191,
-            'package_id' => null,
-            'cv_reduced_at' => 1622505600,
-            'cv_removed_at' => null,
-        ]);
-        Game::factory()->create([
-            'name' => 'Game 2',
-            'app_id' => 70600,
-            'package_id' => null,
-            'cv_reduced_at' => 1383192000,
-            'cv_removed_at' => null,
-        ]);
-        Game::factory()->create([
-            'name' => 'Game 3',
-            'app_id' => 70617,
-            'package_id' => null,
-            'cv_reduced_at' => 1543881600,
-            'cv_removed_at' => null,
-        ]);
-        Game::factory()->create([
-            'name' => 'Game 4',
-            'app_id' => null,
-            'package_id' => 27831,
-            'cv_reduced_at' => 1622505600,
-            'cv_removed_at' => null,
-        ]);
+        Game::factory()
+            ->hasSteamgifts([
+                'cv_reduced_at' => Date::createFromTimestamp(1622505600),
+                'cv_removed_at' => null,
+            ])
+            ->create([
+                'name' => 'Game 1',
+                'app_id' => 1440191,
+                'package_id' => null,
+            ]);
+        Game::factory()
+            ->hasSteamgifts([
+                'cv_reduced_at' => Date::createFromTimestamp(1383192000),
+                'cv_removed_at' => null,
+            ])
+            ->create([
+                'name' => 'Game 2',
+                'app_id' => 70600,
+                'package_id' => null,
+            ]);
+        Game::factory()
+            ->hasSteamgifts([
+                'cv_reduced_at' => Date::createFromTimestamp(1543881600),
+                'cv_removed_at' => null,
+            ])
+            ->create([
+                'name' => 'Game 3',
+                'app_id' => 70617,
+                'package_id' => null,
+            ]);
+        Game::factory()
+            ->hasSteamgifts([
+                'cv_reduced_at' => Date::createFromTimestamp(1622505600),
+                'cv_removed_at' => null,
+            ])
+            ->create([
+                'name' => 'Game 4',
+                'app_id' => null,
+                'package_id' => 27831,
+            ]);
 
         $this->url = route('games.index', [
             'app_id' => '1440191,70600',
@@ -65,11 +78,16 @@ class GameControllerIndexTest extends TestCase
                 ->where('name', 'Game 1')
                 ->where('app_id', 1440191)
                 ->where('package_id', null)
-                ->where('cv_reduced_at', 1622505600)
-                ->where('cv_removed_at', null)
+                ->has('steamgifts', fn (AssertableJson $json) => $json
+                    ->has('id')
+                    ->where('game_id', 1)
+                    ->where('cv_reduced_at', Date::createFromTimestamp(1622505600)->toJSON())
+                    ->where('cv_removed_at', null)
+                    ->has('created_at')
+                    ->has('updated_at')
+                )
                 ->has('created_at')
                 ->has('updated_at')
-                ->has('last_checked_sg_at')
             )
             ->has('data.1', fn (AssertableJson $json) => $json
                 ->where('name', 'Game 2')

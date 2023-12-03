@@ -15,6 +15,7 @@ class GameController extends Controller
     {
         $result = Game::whereIn('app_id', explode(',', $request->get('app_id') ?? '0'))
             ->orWhereIn('package_id', explode(',', $request->get('package_id') ?? '0'))
+            ->with('steamgifts')
             ->paginate();
 
         return new GameCollection($result);
