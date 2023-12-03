@@ -14,6 +14,6 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::controller(GameController::class)->group(function () {
+Route::prefix('games')->controller(GameController::class)->group(function () {
     Route::get('', 'index')->name('games.index');
 });
